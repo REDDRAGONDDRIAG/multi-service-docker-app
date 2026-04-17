@@ -1,0 +1,21 @@
+version: '3.9'
+
+services:
+  test-container:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: day-01-test
+    ports:
+      - "8001:80"
+    networks:
+      - devops-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  devops-network:
+    driver: bridge
