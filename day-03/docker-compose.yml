@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    container_name: product-day03
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      ENV: development
+    networks:
+      - devops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  devops-network:
+    driver: bridge
