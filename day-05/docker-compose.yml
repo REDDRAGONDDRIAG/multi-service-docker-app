@@ -1,0 +1,109 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: db-day05
+    environment:
+      POSTGRES_USER: devops
+      POSTGRES_PASSWORD: devops123
+      POSTGRES_DB: devops_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-day05
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops-network
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-day05
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      JWT_SECRET: dev_secret
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - devops-network
+
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    container_name: product-day05
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops-network
+
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: order-day05
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-day05
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - product-service
+      - order-service
+    networks:
+      - devops-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  devops-network:
+    driver: bridge
