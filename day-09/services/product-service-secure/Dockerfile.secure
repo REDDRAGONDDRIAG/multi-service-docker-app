@@ -1,0 +1,63 @@
+# ========================================
+# STAGE 1: BUILDER
+# ========================================
+FROM python:3.11.7-slim AS builder
+
+LABEL stage=builder
+
+WORKDIR /build
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install to /build/.local (--user = ~/.local)
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# ========================================
+# STAGE 2: RUNTIME (SECURE)
+# ========================================
+FROM python:3.11.7-slim
+
+#  LABELS
+LABEL maintainer="DevOps Student"
+LABEL service="product-service"
+LABEL version="1.0"
+LABEL day="9"
+LABEL security="best-practices"
+LABEL description="Product management service"
+
+WORKDIR /app
+
+# CREATE NON-ROOT USER
+# useradd = more specific than adduser
+# -m = create home directory
+# -u 1000 = specific uid
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app && \
+    chown -R appuser:appuser /app
+
+# Copy packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Copy application
+COPY requirements.txt .
+COPY main.py .
+
+#  FIX PERMISSIONS
+RUN chown -R appuser:appuser /app
+
+#  ADD .local/bin to PATH
+ENV PATH=/root/.local/bin:$PATH
+
+# Expose port
+EXPOSE 3002
+
+#  HEALTH CHECK
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c "import requests; requests.get('http://localhost:3002/health', timeout=2)" || exit 1
+
+#  SWITCH TO NON-ROOT USER
+USER appuser
+
+# Start app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3002"]

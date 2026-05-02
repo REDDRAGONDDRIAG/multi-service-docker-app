@@ -1,0 +1,59 @@
+# ========================================
+# STAGE 1: BUILDER
+# ========================================
+FROM golang:1.21.5-alpine AS builder
+
+LABEL stage=builder
+
+WORKDIR /app
+
+# Copy go files
+COPY go.mod .
+COPY main.go .
+
+# Build binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build \
+  -ldflags "-w -s" \
+  -o order-service .
+
+# ========================================
+# STAGE 2: RUNTIME (SECURE)
+# ========================================
+FROM alpine:3.18.4
+
+#  LABELS
+LABEL maintainer="DevOps Student"
+LABEL service="order-service"
+LABEL version="1.0"
+LABEL day="9"
+LABEL security="best-practices"
+LABEL description="Order processing service"
+
+#  INSTALL MINIMAL REQUIREMENTS
+# ca-certificates = for HTTPS connections
+# curl = for health checks
+RUN apk add --no-cache ca-certificates curl && \
+    #  CREATE NON-ROOT USER
+    addgroup -g 1000 appgroup && \
+    adduser -D -u 1000 -G appgroup appuser && \
+    # Create app directory
+    mkdir -p /app && \
+    chown -R appuser:appgroup /app
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder --chown=appuser:appgroup /app/order-service .
+
+# Expose port
+EXPOSE 3003
+
+# HEALTH CHECK
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD curl -f http://localhost:3003/health || exit 1
+
+#  SWITCH TO NON-ROOT USER
+USER appuser
+
+# Start app
+CMD ["./order-service"]

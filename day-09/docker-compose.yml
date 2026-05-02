@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  auth-service:
+    build:
+      context: services/auth-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: auth-day09
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      JWT_SECRET: dev_secret_secure
+      NODE_ENV: development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - devops-network
+    restart: unless-stopped
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+
+  product-service:
+    build:
+      context: services/product-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: product-day09
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      ENV: development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - devops-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
+
+  order-service:
+    build:
+      context: services/order-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: order-day09
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - devops-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+networks:
+  devops-network:
+    driver: bridge

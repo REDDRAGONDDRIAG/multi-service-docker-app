@@ -1,0 +1,62 @@
+# ========================================
+# STAGE 1: BUILDER
+# ========================================
+FROM node:18.18-alpine AS builder
+
+LABEL stage=builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --omit=dev
+
+# ========================================
+# STAGE 2: RUNTIME (SECURE)
+# ========================================
+FROM node:18.18-alpine
+
+#  LABELS - Metadata about image
+LABEL maintainer="DevOps Student"
+LABEL service="auth-service"
+LABEL version="1.0"
+LABEL day="9"
+LABEL security="best-practices"
+LABEL description="Secure JWT authentication service"
+
+WORKDIR /app
+
+#  CREATE NON-ROOT USER
+# uid 1000 = standard non-root user id
+# -D = don't create home directory (security)
+# -u 1000 = specific uid (reproducible)
+RUN addgroup appgroup && \
+    adduser -D -G appgroup appuser
+
+# Copy from builder
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy application
+COPY package*.json ./
+COPY server.js ./
+
+#  FIX PERMISSIONS - ownership to appuser
+# Ensures appuser owns all files
+RUN chown -R appuser:appgroup /app
+
+#  SWITCH TO NON-ROOT USER
+# All subsequent commands run as appuser (not root!)
+USER appuser
+
+# Expose port
+EXPOSE 3001
+
+#  HEALTH CHECK
+# Runs as appuser
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3001/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
+
+# Start app as appuser
+CMD ["node", "server.js"]
