@@ -1,0 +1,104 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-day10
+    environment:
+      POSTGRES_USER: devops
+      POSTGRES_PASSWORD: devops123
+      POSTGRES_DB: devops_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-day10
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - devops-network
+
+  auth-service:
+    build:
+      context: ../day-09/services/auth-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: auth-day10
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      JWT_SECRET: dev_secret
+      DATABASE_HOST: postgres
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - devops-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  product-service:
+    build:
+      context: ../day-09/services/product-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: product-day10
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      DATABASE_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  order-service:
+    build:
+      context: ../day-09/services/order-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: order-day10
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+    networks:
+      - devops-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+
+networks:
+  devops-network:
+    driver: bridge
