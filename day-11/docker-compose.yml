@@ -1,0 +1,207 @@
+version: '3.9'
+
+services:
+  # ========================================
+  # DATABASES & CACHE
+  # ========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-day11
+    environment:
+      POSTGRES_USER: devops
+      POSTGRES_PASSWORD: devops123
+      POSTGRES_DB: devops_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=database,env=prod"
+    labels:
+      service: "database"
+      version: "15"
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-day11
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=cache,env=prod"
+    labels:
+      service: "cache"
+      version: "7"
+
+  # ========================================
+  # MICROSERVICES
+  # ========================================
+  auth-service:
+    build:
+      context: ../day-09/services/auth-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: auth-day11
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      JWT_SECRET: dev_secret
+      DATABASE_HOST: postgres
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - backend
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=auth,env=prod,component=api"
+    labels:
+      service: "auth"
+      component: "api"
+      version: "1.0"
+      monitoring: "true"
+
+  product-service:
+    build:
+      context: ../day-09/services/product-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: product-day11
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      DATABASE_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - backend
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=product,env=prod,component=api"
+    labels:
+      service: "product"
+      component: "api"
+      version: "1.0"
+      monitoring: "true"
+
+  order-service:
+    build:
+      context: ../day-09/services/order-service-secure
+      dockerfile: Dockerfile.secure
+    container_name: order-day11
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+    networks:
+      - backend
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=order,env=prod,component=api"
+    labels:
+      service: "order"
+      component: "api"
+      version: "1.0"
+      monitoring: "true"
+
+  # ========================================
+  # MONITORING STACK
+  # ========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus-day11
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      service: "prometheus"
+      component: "monitoring"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana-day11
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      service: "grafana"
+      component: "monitoring"
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+  monitoring:
+    driver: bridge
