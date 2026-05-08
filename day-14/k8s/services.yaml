@@ -1,0 +1,160 @@
+# ========== AUTH SERVICE ==========
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: auth-service:1.0
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3001
+        env:
+        - name: PORT
+          value: "3001"
+        - name: JWT_SECRET
+          value: "dev_secret_k8s"
+        - name: DATABASE_HOST
+          value: postgres
+        - name: DATABASE_USER
+          value: devops
+        - name: DATABASE_PASSWORD
+          value: devops123
+        - name: REDIS_URL
+          value: "redis://redis:6379"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: devops-app
+spec:
+  selector:
+    app: auth-service
+  type: ClusterIP
+  ports:
+  - port: 3001
+    targetPort: 3001
+
+---
+
+# ========== PRODUCT SERVICE ==========
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:
+      containers:
+      - name: product-service
+        image: product-service:1.0
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3002
+        env:
+        - name: PORT
+          value: "3002"
+        - name: DATABASE_HOST
+          value: postgres
+        - name: DATABASE_USER
+          value: devops
+        - name: DATABASE_PASSWORD
+          value: devops123
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: devops-app
+spec:
+  selector:
+    app: product-service
+  type: ClusterIP
+  ports:
+  - port: 3002
+    targetPort: 3002
+
+---
+
+# ========== ORDER SERVICE ==========
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: devops-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+      - name: order-service
+        image: order-service:1.0
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3003
+        env:
+        - name: PORT
+          value: "3003"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: devops-app
+spec:
+  selector:
+    app: order-service
+  type: ClusterIP
+  ports:
+  - port: 3003
+    targetPort: 3003
